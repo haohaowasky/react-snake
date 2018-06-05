@@ -1,10 +1,18 @@
 import React, { Component } from 'react';
 import cs from 'classnames';
-
 import './App.css';
 
-const TICK_RATE = 100;
-const GRID_SIZE = 35;
+
+// Smart Contract
+const Web3 = require('web3');
+const web3 = new Web3(new Web3.providers.HttpProvider("https://rinkeby.infura.io/teochFL5M5Cc6eidkmI5"));
+const abi = require('./abi');
+const contractAddress = '0xbba370bb44e6c0057d10c4dfb73bbbb3e74635b8';
+var mycontract = new web3.eth.Contract(abi, contractAddress);
+
+
+const TICK_RATE = 1000;
+const GRID_SIZE = 20;
 const GRID = [];
 
 for (let i = 0; i <= GRID_SIZE; i++) {
@@ -81,30 +89,46 @@ const getCellCs = (isGameOver, snake, snack, x, y) =>
       'grid-cell-hit': isGameOver && isPosition(x, y, getSnakeHead(snake).x, getSnakeHead(snake).y),
     }
   );
+  
+// smart contract call
+ async function getdirection(x1,x2,y1,y2){
+   var resp =  await mycontract.methods.direction(x1,x2,y1,y2).call();
+   console.log(resp);
+   return resp;
+ }
+ 
+ const applySnakePosition =  (prevState) =>  {
+  const isSnakeEating =  getIsSnakeEating(prevState);
 
-const applySnakePosition = (prevState) => {
-  const isSnakeEating = getIsSnakeEating(prevState);
-
-  const snakeHead = DIRECTION_TICKS[prevState.playground.direction](
+  
+  const snakeHead =   DIRECTION_TICKS[prevState.playground.direction](
     getSnakeHead(prevState.snake).x,
     getSnakeHead(prevState.snake).y,
+    //console.log(snakeHead)
   );
+   
+  
+  //const direction =  (KEY_CODES_MAPPER[parseInt(Math.random()*(40 - 37) + 37)]);
 
-  const snakeTail = isSnakeEating
+  const snakeTail =  isSnakeEating
     ? prevState.snake.coordinates
     : getSnakeWithoutStub(prevState.snake);
 
-  const snackCoordinate = isSnakeEating
+  const snackCoordinate =  isSnakeEating
     ? getRandomCoordinate()
     : prevState.snack.coordinate;
+  
 
   return {
     snake: {
-      coordinates: [snakeHead, ...snakeTail],
+    //  coordinates: [snakeHead, ...snakeTail],
+    coordinates: [snakeHead],
+
     },
     snack: {
       coordinate: snackCoordinate,
     },
+  
   };
 };
 
@@ -123,7 +147,7 @@ const doChangeDirection = (direction) => () => ({
 class App extends Component {
   constructor(props) {
     super(props);
-
+    this.onChangeDirection = this.onChangeDirection.bind(this);
     this.state = {
       playground: {
         direction: DIRECTIONS.RIGHT,
@@ -136,24 +160,27 @@ class App extends Component {
         coordinate: getRandomCoordinate(),
       }
     };
+    
+    
   }
+   componentDidMount() {
+    
+    this.interval = setInterval(this.onChangeDirection, 500);
 
-  componentDidMount() {
     this.interval = setInterval(this.onTick, TICK_RATE);
-
-    window.addEventListener('keyup', this.onChangeDirection, false);
   }
 
   componentWillUnmount() {
     clearInterval(this.interval);
-
-    window.removeEventListener('keyup', this.onChangeDirection, false);
-  }
-
-  onChangeDirection = (event) => {
-    if (KEY_CODES_MAPPER[event.keyCode]) {
-      this.setState(doChangeDirection(KEY_CODES_MAPPER[event.keyCode]));
     }
+
+  async onChangeDirection(){
+      //this.setState(doChangeDirection(KEY_CODES_MAPPER[event.keyCode]));
+      //console.log("change")
+      //console.log(this.state.snack.coordinate.x, getSnakeHead(this.state.snake).x, this.state.snack.coordinate.y, getSnakeHead(this.state.snake).y)
+      let resp =  await getdirection(this.state.snack.coordinate.x, getSnakeHead(this.state.snake).x, this.state.snack.coordinate.y, getSnakeHead(this.state.snake).y);
+      console.log(KEY_CODES_MAPPER[resp]);
+      this.setState(doChangeDirection(KEY_CODES_MAPPER[resp]));
   }
 
   onTick = () => {
@@ -161,6 +188,7 @@ class App extends Component {
       ? this.setState(applyGameOver)
       : this.setState(applySnakePosition);
   }
+  
 
   render() {
     const {
@@ -171,7 +199,7 @@ class App extends Component {
 
     return (
       <div className="app">
-        <h1>Snake!</h1>
+        <h1>Moving dot controled by smart contract</h1>
         <Grid
           snake={snake}
           snack={snack}
